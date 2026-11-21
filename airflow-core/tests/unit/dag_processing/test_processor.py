@@ -76,8 +76,8 @@ from airflow.models import DagRun
 from airflow.models.dagwarning import DagWarning
 from airflow.sdk import DAG, BaseOperator, task_group
 from airflow.sdk.api.client import Client
-from airflow.sdk.bases.notifier import BaseNotifier
 from airflow.sdk.api.datamodels._generated import ConnectionResponse, DagRunState, VariableResponse
+from airflow.sdk.bases.notifier import BaseNotifier
 from airflow.sdk.definitions._internal.loop import create_loop
 from airflow.sdk.execution_time import comms, supervisor
 from airflow.sdk.execution_time.comms import (

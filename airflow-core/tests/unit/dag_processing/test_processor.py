@@ -76,6 +76,7 @@ from airflow.models import DagRun
 from airflow.models.dagwarning import DagWarning
 from airflow.sdk import DAG, BaseOperator, task_group
 from airflow.sdk.api.client import Client
+from airflow.sdk.bases.notifier import BaseNotifier
 from airflow.sdk.api.datamodels._generated import ConnectionResponse, DagRunState, VariableResponse
 from airflow.sdk.definitions._internal.loop import create_loop
 from airflow.sdk.execution_time import comms, supervisor
@@ -1004,6 +1005,45 @@ class TestExecuteCallbacks:
         log.exception.assert_called_once()
         assert log.exception.call_args.kwargs["dag_id"] == "removed_dag"
         assert "context_from_server" not in log.exception.call_args.kwargs["request"]
+
+    def test_execute_callbacks_renders_dag_notifier_per_request(self, spy_agency):
+        """Batched callbacks for one Dag share its notifier; each must render its own run's values."""
+        seen = []
+
+        class RecordingNotifier(BaseNotifier):
+            template_fields = ("message",)
+
+            def __init__(self, message):
+                super().__init__()
+                self.message = message
+
+            def notify(self, context):
+                seen.append(self.message)
+
+        dag = DAG(dag_id="a", on_success_callback=RecordingNotifier(message="run {{ run_id }}"))
+
+        def fake_collect_dags(self, *args, **kwargs):
+            self.dags[dag.dag_id] = dag
+
+        spy_agency.spy_on(DagBag.collect_dags, call_fake=fake_collect_dags, owner=DagBag)
+        dagbag = DagBag()
+        dagbag.collect_dags()
+
+        requests = [
+            DagCallbackRequest(
+                filepath="test.py",
+                dag_id="a",
+                run_id=run_id,
+                bundle_name="testing",
+                bundle_version=None,
+                is_failure_callback=False,
+                msg=None,
+            )
+            for run_id in ("run_a", "run_b")
+        ]
+        _execute_callbacks(dagbag, requests, MagicMock(spec=FilteringBoundLogger))
+
+        assert seen == ["run run_a", "run run_b"]
 
 
 class TestExecuteDagCallbacks:

@@ -99,11 +99,15 @@ class TestBaseNotifier:
         assert notifier.message == "task: some_task"
 
     def test_notifier_reused_across_calls_renders_each_context(self):
+        seen = []
+
+        class RecordingNotifier(MockNotifier):
+            def notify(self, context):
+                seen.append(self.message)
+
         with DAG("test_notifier_reused_across_calls") as dag:
             EmptyOperator(task_id="test_id")
-        notifier = MockNotifier(message="run {{ run_id }}")
-        seen = []
-        notifier.notify = lambda context: seen.append(notifier.message)
+        notifier = RecordingNotifier(message="run {{ run_id }}")
 
         notifier({"dag": dag, "run_id": "run_a"})
         notifier({"dag": dag, "run_id": "run_b"})
